@@ -1,0 +1,928 @@
+---
+title: "RTI practice01"
+author: "Kirsten Childs"
+date: "1/18/2022"
+output: html_document
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyverse)
+library(DescTools)
+library(vcdExtra)
+library(gmodels)
+library(ggplot2)
+library(jmv)
+library(mgcv)
+
+#import csv
+ovr50 = read.csv("/Users/jspade/Desktop/MSA Info/Networking/RTI assignment/main_practice01csv.csv")
+
+#change martial_status to marital_status
+names(ovr50)[names(ovr50)=='martial_status'] <- 'marital_status'
+
+#view csv
+# View(ovr50)
+```
+
+## Exploring the data part 1 
+#Looking at summary statistics
+
+```{r explore1}
+#checking counts of what is in each column to see what needs to be cleaned
+ovr50 %>% count(workclass, sort = TRUE) # has ? values
+ovr50 %>% count(education_level, sort = TRUE)
+ovr50 %>% count(education_num, sort = TRUE) 
+ovr50 %>% count(marital_status, sort = TRUE)
+ovr50 %>% count(occupation, sort = TRUE) # has ? values
+ovr50 %>% count(relationship, sort = TRUE)
+ovr50 %>% count(race, sort = TRUE)
+ovr50 %>% count(sex, sort = TRUE)
+ovr50 %>% count(capital_gain, sort = TRUE) #left skewed with mainly 0's
+ovr50 %>% count(capital_loss, sort = TRUE) #left skewed with mainly 0's
+ovr50 %>% count(hours_week, sort = TRUE)
+ovr50 %>% count(country, sort = TRUE) # has ? values
+ovr50 %>% count(over_50k, sort = TRUE) # target
+
+#5 number summary for continuous variables
+summary(ovr50$age)
+summary(ovr50$education_num)
+summary(ovr50$capital_gain)
+summary(ovr50$capital_loss)
+summary(ovr50$hours_week)
+```
+
+
+## Exploring the data part 2
+#Looking at statistical tests for significance
+
+```{r explore2, echo=FALSE, warning= FALSE}
+#Run Statistical Tests to Determine Significance Individually
+  
+  #Descriptive analysis
+  #build a cross table for all categorical compared to over_50k
+  #workclass, education_level, marital_status, occupation, relationship, race, sex, country
+  #this output gave pearson's and pearson's with Yates, used Yates with sex to match output from below.
+  
+  CrossTable(ovr50$over_50k, ovr50$workclass, expected=TRUE) #1610.262 with p-value 0
+  CrossTable(ovr50$over_50k, ovr50$education_level, expected=TRUE) # 6537.973 with p-value 0
+  CrossTable(ovr50$over_50k, ovr50$marital_status, expected=TRUE) #9816.015  with p-value 0
+  CrossTable(ovr50$over_50k, ovr50$occupation, expected=TRUE)  #has expected counts < 5 in Armed Forces
+  CrossTable(ovr50$over_50k, ovr50$relationship, expected=TRUE) #10088.72  with p-value 0
+  CrossTable(ovr50$over_50k, ovr50$race, expected=TRUE) #487.0263 with p-value 4.284378e-104
+  CrossTable(ovr50$over_50k, ovr50$sex, expected=TRUE) #2248.848 with p-value 0 
+  CrossTable(ovr50$over_50k, ovr50$country, expected=TRUE) #has expected counts < 5
+
+  #chi squared (sample size requirement - expected values >=5 if not met - fisher's exact test)
+
+  #occupation and country need to use fisher instead of chi sqr
+  fisher.test(table(ovr50$occupation, ovr50$over_50k), simulate.p.value = T)  # p-value 0.0004998
+  fisher.test(table(ovr50$country, ovr50$over_50k), simulate.p.value = T)  # p-value 0.0004998 
+  
+  #results: all variables prove to be significant
+  
+  
+  
+  #Single Variable Logistic Regression to test significance of continuous variables: education_num, capital_gain, capital_loss, hours_week
+  
+  #education_num
+  ovr50_logit <-glm(over_50k ~ education_num, data=ovr50, family=binomial(link="logit"))
+  summary(ovr50_logit)
+  #significant
+  
+  #capital_gain
+  ovr50_logit <-glm(over_50k ~ capital_gain, data=ovr50, family=binomial(link="logit"))
+  summary(ovr50_logit)
+  #Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+  #need to run GAM here
+  
+  #capital_loss
+  ovr50_logit <-glm(over_50k ~ capital_loss, data=ovr50, family=binomial(link="logit"))
+  summary(ovr50_logit)
+  #significant
+  
+  #hours_week
+  ovr50_logit <-glm(over_50k ~ hours_week, data=ovr50, family=binomial(link="logit"))
+  summary(ovr50_logit)
+  #signficant
+```
+
+
+## Exploring the data part 3
+#Visualizing the variables
+
+```{r explore3, warning=FALSE}
+##To visualize each variable.
+  
+  #First Categorical Visualizations (bar plots)
+  #workclass, education_level, marital_status, occupation, relationship, race, sex, country
+  
+  #workclass
+  df_hold <- ovr50 %>%
+    group_by(over_50k,workclass)%>%
+    summarize(count=n())
+  df_hold
+  
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = over_50k, fill = factor(workclass)))
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = workclass, fill = factor(over_50k)))
+ 
+  #education_level
+  df_hold <- ovr50 %>%
+    group_by(over_50k,education_level)%>%
+    summarize(count=n())
+  df_hold
+  
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = over_50k, fill = factor(education_level)))
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = education_level, fill = factor(over_50k)))
+  
+  #marital_status 
+  df_hold <- ovr50 %>%
+    group_by(over_50k,marital_status)%>%
+    summarize(count=n())
+  df_hold
+  
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = over_50k, fill = factor(marital_status)))
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = marital_status, fill = factor(over_50k)))
+  
+  #occupation
+  df_hold <- ovr50 %>%
+    group_by(over_50k,occupation)%>%
+    summarize(count=n())
+  df_hold
+  
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = over_50k, fill = factor(occupation)))
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = occupation, fill = factor(over_50k)))
+  
+  #relationship
+  df_hold <- ovr50 %>%
+    group_by(over_50k,relationship)%>%
+    summarize(count=n())
+  df_hold
+  
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = over_50k, fill = factor(relationship)))
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = relationship, fill = factor(over_50k)))
+ 
+  #race
+  df_hold <- ovr50 %>%
+    group_by(over_50k,race)%>%
+    summarize(count=n())
+  df_hold
+  
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = over_50k, fill = factor(race)))
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = race, fill = factor(over_50k)))
+  
+  #sex
+  df_hold <- ovr50 %>%
+    group_by(over_50k,sex)%>%
+    summarize(count=n())
+  df_hold
+  
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = over_50k, fill = factor(sex)))
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = sex, fill = factor(over_50k)))
+  
+  #country
+  df_hold <- ovr50 %>%
+    group_by(over_50k,country)%>%
+    summarize(count=n())
+  df_hold
+  
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = over_50k, fill = factor(country)))
+  ggplot(data = ovr50) +
+    geom_bar(mapping = aes(x = country, fill = factor(over_50k)))
+  
+  
+  #Next Continuous Visualizations (boxplots)
+  #education_num, capital_gain, capital_loss, hours_week
+  
+  #education_num
+  ggplot(ovr50,aes(x = education_num))+
+    geom_histogram(aes(y=..density..), alpha=0.5)+
+    labs(x= "Education Level Acheived", y = "Count", title="Education Level")
+  
+  ggplot(data=ovr50, aes(y=education_num, x = over_50k, group=over_50k))+
+    geom_boxplot()+
+    labs(y="Education Number", x= "Over 50k Income (1=yes)")+
+    coord_flip()
+  
+  ggplot(ovr50, aes(x =education_num, fill = over_50k)) + 
+    geom_bar(position = "stack")
+  
+    kruskal.test(education_num~over_50k, data=ovr50)
+  # Kruskal-Wallis chi-squared = 5248.6, df = 1, p-value < 2.2e-16
+  
+  #capital gain
+ ggplot(ovr50,aes(x = capital_gain))+
+    geom_histogram(aes(y=..density..), alpha=0.5, binwidth = 100)+
+    labs(x= "Capital Gain", y = "Count", title="Capital Gains")
+  
+  ggplot(data=ovr50, aes(y=capital_gain, x = over_50k, group=over_50k))+
+    geom_boxplot()+
+    labs(y="Capital Gains", x= "Over 50k Income (1=yes)")+
+    coord_flip()
+    #significantly left skewed!
+      
+  kruskal.test(capital_gain~over_50k, data=ovr50)
+  # Kruskal-Wallis chi-squared = 3767.4, df = 1, p-value < 2.2e-16
+  
+  #capital loss
+ ggplot(ovr50,aes(x = capital_loss))+
+    geom_histogram(aes(y=..density..), alpha=0.5, binwidth = 10)+
+    labs(x= "Capital Loss", y = "Count", title="Capital Loss")
+  
+  ggplot(data=ovr50, aes(y=capital_gain, x = over_50k, group=over_50k))+
+    geom_boxplot()+
+    labs(y="Capital Loss", x= "Over 50k Income (1=yes)")+
+    coord_flip()
+    #left skewed!
+    
+  kruskal.test(capital_loss~over_50k, data=ovr50)
+  # Kruskal-Wallis chi-squared = 933.48, df = 1, p-value < 2.2e-16
+  
+  
+    #hours per week
+ ggplot(ovr50,aes(x = hours_week))+
+    geom_histogram(aes(y=..density..), alpha=0.5)+
+    labs(x= "Hours Per Week", y = "Count", title="L")
+  
+  ggplot(data=ovr50, aes(y=hours_week, x = over_50k, group=over_50k))+
+    geom_boxplot()+
+    labs(y="Hours Per Week", x= "Over 50k Income (1=yes)")+
+    coord_flip()
+    
+    
+  kruskal.test(hours_week~over_50k, data=ovr50)
+  # Kruskal-Wallis chi-squared = 3512.3, df = 1, p-value < 2.2e-16
+  
+```
+
+
+## Splitting into test/validate/train
+
+```{r split, echo=FALSE}
+# Split into training and test datasets
+set.seed(18209)
+spec = c(train = .7, validate = .2, test = .1)
+
+g = sample(cut(
+  seq(nrow(ovr50)), 
+  nrow(ovr50)*cumsum(c(0,spec)),
+  labels = names(spec)
+))
+
+res = split(ovr50, g)
+
+train = res$train
+validate = res$validate
+test = res$test
+
+sapply(res, nrow)/nrow(ovr50)
+```
+
+
+## Building the model
+#STEP 1: continuous variables need to meet assumptions OR be binned.
+
+```{r bin}
+#checking linearity assumption on continuous variables with gams
+#not using education_num since it represents the same information as education_level
+fit.gam<-gam(over_50k ~factor(age) +factor(workclass) + factor(education_level) + factor(marital_status) + factor(occupation) + factor(relationship) + factor(race) + factor(sex) + s(capital_gain) + s(capital_loss) + s(hours_week) ,
+data =train, family =binomial(link ='logit'), method ='REML')
+summary(fit.gam)
+plot(fit.gam)
+
+#All continuous vars do not meet assumptions (edf of 7 capital_gain, 8 capital_loss, and 6 hours_week)
+#therefore I will bin capital_gain and capital_loss and hours_week
+
+#because of the skewness seen above I will bin into 0 and 1 for capital_gain and capital_loss
+train$capital_gain <- ifelse(train$capital_gain == 0, 0, 1)
+train$capital_loss <- ifelse(train$capital_loss == 0, 0, 1)
+
+
+#since median is 40 hours per week, I will bin into 'Less_40' = 1, '40' = 0, and 'Greater_40' = 2
+#I had trouble and couldn't figure out quick enough how to fix my error so the next part is a roundabout way of binning.
+train$hours_week = ifelse(train$hours_week < 40, 1, train$hours_week)
+train$hours_week_bin = train$hours_week
+train$hours_week_bin = ifelse(train$hours_week_bin > 40, 2, train$hours_week_bin)
+train$hours_week_bins = train$hours_week_bin
+train$hours_week_bins = ifelse(train$hours_week_bins == 40, 0, train$hours_week_bins)
+
+#View(train)
+#now check for separation:
+#CHECK FOR SEPARATION in categorical vars
+#put all categorical variables in their own data frame to run through separation loop
+cat_var <- train %>% 
+  dplyr::select(over_50k,
+                workclass, 
+                education_level,
+                marital_status,
+                occupation,
+                relationship,
+                race,
+                sex,
+                country,
+                age,
+                capital_gain,
+                capital_loss,
+                hours_week_bins)
+
+#Loop to look for separation:
+for (i in 1:length(colnames(cat_var)) ) {
+  print( colnames(cat_var)[i] )
+  print( table(cat_var$over_50k, cat_var[,i])  )
+}
+
+#separation in age (bin to 0-24, 25-44, 45-64, 65+) per what the census does on their website
+train <- train%>%mutate(age_bin = cut(age, breaks = c(0,24,44,64,140)))
+head(train,10)
+#separation in countries (Honduras, Holand_Netherlands, Laos will be binned into ?)
+train$country<- ifelse(train$country == 'Holand-Netherlands'| train$country == 'Honduras' |train$country == 'Loas', '?', train$country)
+#separation in education_level (bin preschool into 1st-4th)
+train$education_level<- ifelse(train$education_level == 'Preschool', '1st-4th', train$education_level)
+#separation in workclass (bin Never-worked into ?)
+train$workclass<- ifelse(train$workclass == 'Never-worked', '?', train$workclass)
+
+
+#Releveling Education_level
+train$education_level <- factor(train$education_level, levels = c("HS-grad", "Preschool", "1st-4th", "5th-6th","7th-8th","9th","10th","11th","12th","Some-college","Assoc-voc","Assoc-acdm","Bachelors","Masters","Prof-school","Doctorate"))
+train %>% count(education_level, sort = TRUE)
+
+```
+
+
+## Building the model
+#STEP 2: variable selection using backwards selection
+
+```{r stepwise, warning=FALSE }
+#now backwards selection with main effects
+#then forward selection with interactions (be careful of interactions with separation)
+
+full.model <- glm(over_50k ~factor(age_bin) +factor(workclass) + factor(education_level) + factor(marital_status) + factor(occupation) + factor(relationship) + factor(race) + factor(sex) + factor(capital_gain) + factor(capital_loss) + factor(hours_week_bins) ,
+data =train, family =binomial(link ='logit'))
+
+back.model<-step(full.model, direction ="backward")
+# Start:  AIC=22403.58
+# over_50k ~ factor(age_bin) + factor(workclass) + factor(education_level) + 
+#     factor(marital_status) + factor(occupation) + factor(relationship) + 
+#     factor(race) + factor(sex) + factor(capital_gain) + factor(capital_loss) + 
+#     factor(hours_week_bins)
+
+back.model1<-step(full.model, direction ="backward", k= qchisq(0.02, 1,lower.tail=FALSE))
+
+summary(back.model)
+library(car)
+#car::vif(back.model)
+#tells me there is multicollinearity
+#alias(back.model)
+#tells me there is multicollinearity with occupation and workclass
+
+#will drop workclass
+full.model2 <- glm(over_50k ~factor(age_bin) + factor(education_level) + factor(marital_status) + factor(occupation) + factor(relationship) + factor(race) + factor(sex) + factor(capital_gain) + factor(capital_loss) + factor(hours_week_bins) ,
+data =train, family =binomial(link ='logit'))
+
+back.model2<-step(full.model2, direction ="backward")
+summary(back.model2)
+#car::vif(back.model2)
+#tells me there is multicollinearity
+#alias(back.model2)
+#tells me multicollinearity between relationship and marital_status
+#AIC: 22517
+
+#will drop occupation instead of workclass
+full.model3 <- glm(over_50k ~factor(age_bin) +factor(workclass) + factor(education_level) + factor(marital_status) +  factor(relationship) + factor(race) + factor(sex) + factor(capital_gain) + factor(capital_loss) + factor(hours_week_bins) ,
+data =train, family =binomial(link ='logit'))
+
+back.model3<-step(full.model3, direction ="backward")
+summary(back.model3)
+#car::vif(back.model3)
+#tells me there is multicollinearity
+#alias(back.model3)
+#tells me multicollinearity between relationship and marital_status
+#AIC: 22951
+
+#it would be fine to remove either workclass or occupation.
+#then I saw high VIF with relationship and marital status in both models.
+#I will remove relationship
+
+#Drops occupation and relationship
+full.model4 <- glm(over_50k ~factor(age_bin) +factor(workclass) + factor(education_level) + factor(marital_status) + factor(race) + factor(sex) + factor(capital_gain) + factor(capital_loss) + factor(hours_week_bins) ,
+data =train, family =binomial(link ='logit'))
+
+back.model4<-step(full.model4, direction ="backward")
+summary(back.model4)
+car::vif(back.model4)
+#no more issues
+#AIC: 23178
+
+#Drops workclass and relationship
+full.model5 <- glm(over_50k ~factor(age_bin) +factor(occupation) + factor(education_level) + factor(marital_status) + factor(race) + factor(sex) + factor(capital_gain) + factor(capital_loss) + factor(hours_week_bins) ,
+data =train, family =binomial(link ='logit'))
+
+back.model5<-step(full.model5, direction ="backward")
+summary(back.model5)
+car::vif(back.model5)
+#no more issues
+#AIC: 22735
+
+
+#I have two models workclass (full.model4) and occupation (full.model5)
+#higher AIC than original but I feel better about multicollinearity. 
+# Start:  AIC=23178
+# over_50k ~ factor(age_bin) + factor(workclass) + factor(education_level) + 
+#     factor(marital_status) + factor(race) + factor(capital_gain) + 
+#     factor(capital_loss) + factor(hours_week_bins)
+
+#higher AIC than original but I feel better about multicollinearity.
+# Start:  AIC=22735
+# over_50k ~ factor(age_bin) + factor(occupation) + factor(education_level) + 
+#     factor(marital_status) + factor(race) + factor(capital_gain) + 
+#     factor(capital_loss) + factor(hours_week_bins)
+
+
+
+#Looking at adding interactions into the model:
+#would normally bring in interactions and look using forward selection. **Here I will forego this step**
+# full.model <- glm(over_50k ~ factor(age_bin) + factor(workclass) + factor(education_level) + 
+#     factor(marital_status) + factor(race) + factor(capital_gain) + 
+#     factor(capital_loss) + factor(hours_week_bins) ,
+# data =train, family =binomial(link ='logit'))
+# summary(full.model)
+# AIC(full.model)
+
+
+
+
+#Looking at Probability Based Metrics for Assessing Predictive Power: full.model4
+#looking at Coefficient of Discrimination (re-do on validation and test!)
+train$p_hat<-predict(full.model4, type ="response") 
+p1 <-train$p_hat[train$over_50k==1] 
+p0 <-train$p_hat[train$over_50k==0] 
+
+coef_discrim<-mean(p1) -mean(p0)
+#0.404
+
+ggplot(train, aes(p_hat, fill =factor(over_50k))) +geom_density(alpha =0.7) +scale_fill_grey() +labs(x ="Predicted Probability", fill ="Outcome", title =paste("Coefficient of Discrimination = ", round(coef_discrim, 3), sep=""))
+
+InformationValue::Concordance(train$over_50k, train$p_hat)
+# $Concordance
+# [1] 0.8922262
+# 
+# $Discordance
+# [1] 0.1077738
+# 
+# $Tied
+# [1] 4.163336e-17
+# 
+# $Pairs
+# [1] 212146278
+InformationValue::somersD(train$over_50k, train$p_hat)
+#0.7844523
+
+library(InformationValue)
+sens<-NULL
+spec <-NULL
+youden<-NULL
+cutoff <-NULL
+for(i in 1:49){ 
+	cutoff =c(cutoff, i/50) 
+	sens<-c(sens, sensitivity(train$over_50k, train$p_hat, threshold =i/50)) 
+	spec <-c(spec, specificity(train$over_50k, train$p_hat, threshold =i/50)) 
+	youden<-c(youden, youdensIndex(train$over_50k, train$p_hat, threshold =i/50)) 
+} 
+ctable<-data.frame(cutoff, sens, spec, youden) 
+
+print(ctable[order(-youden),])
+
+#optimal cutoff of .18
+confusionMatrix(train$over_50k, train$p_hat, threshold =0.18)
+
+plotROC(train$over_50k, train$p_hat)
+#concordance 0.8926
+
+
+#Looking at Probability Based Metrics for Assessing Predictive Power:
+#looking at Coefficient of Discrimination (re-do on validation and test!)
+train$p_hat<-predict(full.model5, type ="response") 
+p1 <-train$p_hat[train$over_50k==1] 
+p0 <-train$p_hat[train$over_50k==0] 
+
+coef_discrim<-mean(p1) -mean(p0)
+#0.404
+
+ggplot(train, aes(p_hat, fill =factor(over_50k))) +geom_density(alpha =0.7) +scale_fill_grey() +labs(x ="Predicted Probability", fill ="Outcome", title =paste("Coefficient of Discrimination = ", round(coef_discrim, 3), sep=""))
+
+InformationValue::Concordance(train$over_50k, train$p_hat)
+# $Concordance
+# [1] 0.8982773
+# 
+# $Discordance
+# [1] 0.1017227
+# 
+# $Tied
+# [1] -4.163336e-17
+# 
+# $Pairs
+# [1] 212146278
+InformationValue::somersD(train$over_50k, train$p_hat)
+#0.7965545
+
+library(InformationValue)
+sens<-NULL
+spec <-NULL
+youden<-NULL
+cutoff <-NULL
+for(i in 1:49){ 
+	cutoff =c(cutoff, i/50) 
+	sens<-c(sens, sensitivity(train$over_50k, train$p_hat, threshold =i/50)) 
+	spec <-c(spec, specificity(train$over_50k, train$p_hat, threshold =i/50)) 
+	youden<-c(youden, youdensIndex(train$over_50k, train$p_hat, threshold =i/50)) 
+} 
+ctable<-data.frame(cutoff, sens, spec, youden) 
+
+print(ctable[order(-youden),])
+
+#optimal cutoff of .20
+confusionMatrix(train$over_50k, train$p_hat, threshold =0.20)
+
+plotROC(train$over_50k, train$p_hat)
+#concordance 0.8981
+```
+
+
+# Final Models Selected:
+full.model4
+AIC=23178
+over_50k ~ factor(age_bin) + factor(workclass) + factor(education_level) + factor(marital_status) + factor(race) + factor(capital_gain) + factor(capital_loss) + factor(hours_week_bins)
+
+full.model5
+AIC=22735
+over_50k ~ factor(age_bin) + factor(occupation) + factor(education_level) + factor(marital_status) + factor(race) + factor(capital_gain) + factor(capital_loss) + factor(hours_week_bins)
+
+
+## Building the model
+#STEP 3: Validation
+```{r validate}
+#preform all binning to validate:
+validate$capital_gain<- ifelse(validate$capital_gain == 0, 0, 1)
+validate$capital_loss<- ifelse(validate$capital_loss == 0, 0, 1)
+validate$hours_week = ifelse(validate$hours_week < 40, 1, validate$hours_week)
+validate$hours_week_bin = validate$hours_week
+validate$hours_week_bin = ifelse(validate$hours_week_bin > 40, 2, validate$hours_week_bin)
+validate$hours_week_bins = validate$hours_week_bin
+validate$hours_week_bins = ifelse(validate$hours_week_bins == 40, 0, validate$hours_week_bins)
+validate <- validate%>%mutate(age_bin = cut(age, breaks = c(0,24,44,64,140)))
+head(validate,10)
+validate$country<- ifelse(validate$country == 'Holand-Netherlands'| validate$country == 'Honduras' |validate$country == 'Loas', '?', validate$country)
+validate$education_level<- ifelse(validate$education_level == 'Preschool', '1st-4th', validate$education_level)
+validate$workclass<- ifelse(validate$workclass == 'Never-worked', '?', validate$workclass)
+
+#Re-leveling Education_level
+validate$education_level <- factor(validate$education_level, levels = c("HS-grad", "Preschool", "1st-4th", "5th-6th","7th-8th","9th","10th","11th","12th","Some-college","Assoc-voc","Assoc-acdm","Bachelors","Masters","Prof-school","Doctorate"))
+validate %>% count(education_level, sort = TRUE)
+
+cat_var2 <- validate %>% 
+  dplyr::select(over_50k,
+                workclass, 
+                education_level,
+                marital_status,
+                occupation,
+                relationship,
+                race,
+                sex,
+                country,
+                age_bin,
+                capital_gain,
+                capital_loss,
+                hours_week_bins)
+
+#running full.model4 on validate
+new_data<-data.frame(validate, 
+						'Pred'=predict(full.model4, newdata=validate, 
+										type ="response"))
+
+
+#Looking at Probability Based Metrics for Assessing Predictive Power: full.model4
+#looking at Coefficient of Discrimination (re-do on validation and test!)
+validate$p_hat<-predict(full.model4, newdata=validate, type ="response") 
+p1 <-validate$p_hat[validate$over_50k==1] 
+p0 <-validate$p_hat[validate$over_50k==0] 
+
+coef_discrim<-mean(p1) -mean(p0)
+coef_discrim
+#0.4027499
+
+
+ggplot(validate, aes(p_hat, fill =factor(over_50k))) +geom_density(alpha =0.7) +scale_fill_grey() +labs(x ="Predicted Probability", fill ="Outcome", title =paste("Coefficient of Discrimination = ", round(coef_discrim, 3), sep=""))
+
+InformationValue::Concordance(validate$over_50k, validate$p_hat)
+# $Concordance
+# [1] 0.8913373
+# 
+# $Discordance
+# [1] 0.1086627
+# 
+# $Tied
+# [1] 1.387779e-17
+# 
+# $Pairs
+# [1] 17452556
+InformationValue::somersD(validate$over_50k, validate$p_hat)
+#0.7826747
+
+library(InformationValue)
+sens<-NULL
+spec <-NULL
+youden<-NULL
+cutoff <-NULL
+for(i in 1:49){ 
+	cutoff =c(cutoff, i/50) 
+	sens<-c(sens, sensitivity(validate$over_50k, validate$p_hat, threshold =i/50)) 
+	spec <-c(spec, specificity(validate$over_50k, validate$p_hat, threshold =i/50)) 
+	youden<-c(youden, youdensIndex(validate$over_50k, validate$p_hat, threshold =i/50)) 
+} 
+ctable<-data.frame(cutoff, sens, spec, youden) 
+
+print(ctable[order(-youden),])
+
+#optimal cutoff of .24
+confusionMatrix(validate$over_50k, validate$p_hat, threshold =0.24)
+
+plotROC(validate$over_50k, validate$p_hat)
+#concordance 0.8917
+
+
+
+#running full.model5 on validate
+new_data<-data.frame(validate, 
+						'Pred'=predict(full.model5, newdata=validate, 
+										type ="response"))
+
+
+
+#Looking at Probability Based Metrics for Assessing Predictive Power: full.model4
+#looking at Coefficient of Discrimination (re-do on validation and test!)
+validate$p_hat<-predict(full.model5, newdata=validate, type ="response") 
+p1 <-validate$p_hat[validate$over_50k==1] 
+p0 <-validate$p_hat[validate$over_50k==0] 
+
+coef_discrim<-mean(p1) -mean(p0)
+coef_discrim
+#0.4167998
+
+
+ggplot(validate, aes(p_hat, fill =factor(over_50k))) +geom_density(alpha =0.7) +scale_fill_grey() +labs(x ="Predicted Probability", fill ="Outcome", title =paste("Coefficient of Discrimination = ", round(coef_discrim, 3), sep=""))
+
+InformationValue::Concordance(validate$over_50k, validate$p_hat)
+# $Concordance
+# [1] 0.8981847
+# 
+# $Discordance
+# [1] 0.1018153
+# 
+# $Tied
+# [1] 1.387779e-17
+# 
+# $Pairs
+# [1] 17452556
+InformationValue::somersD(validate$over_50k, validate$p_hat)
+#0.7963693
+
+library(InformationValue)
+sens<-NULL
+spec <-NULL
+youden<-NULL
+cutoff <-NULL
+for(i in 1:49){ 
+	cutoff =c(cutoff, i/50) 
+	sens<-c(sens, sensitivity(validate$over_50k, validate$p_hat, threshold =i/50)) 
+	spec <-c(spec, specificity(validate$over_50k, validate$p_hat, threshold =i/50)) 
+	youden<-c(youden, youdensIndex(validate$over_50k, validate$p_hat, threshold =i/50)) 
+} 
+ctable<-data.frame(cutoff, sens, spec, youden) 
+
+print(ctable[order(-youden),])
+
+#optimal cutoff of .22
+confusionMatrix(validate$over_50k, validate$p_hat, threshold =0.22)
+
+plotROC(validate$over_50k, validate$p_hat)
+#concordance 0.8982
+```
+
+full.model5 preformed just slightly better I will take that one to test as my final model.
+
+
+## Testing the model
+#STEP 4: Test
+```{r test}
+#preform all binning on test:
+test$capital_gain <- ifelse(test$capital_gain == 0, 0, 1)
+test$capital_loss <- ifelse(test$capital_loss == 0, 0, 1)
+test$hours_week = ifelse(test$hours_week < 40, 1, test$hours_week)
+test$hours_week_bin = test$hours_week
+test$hours_week_bin = ifelse(test$hours_week_bin > 40, 2, test$hours_week_bin)
+test$hours_week_bins = test$hours_week_bin
+test$hours_week_bins = ifelse(test$hours_week_bins == 40, 0, test$hours_week_bins)
+test <- test%>%mutate(age_bin = cut(age, breaks = c(0,24,44,64,140)))
+head(test,10)
+test$country<- ifelse(test$country == 'Holand-Netherlands'|test$country == 'Honduras' |test$country == 'Loas', '?', test$country)
+test$education_level<- ifelse(test$education_level == 'Preschool', '1st-4th', test$education_level)
+test$workclass<- ifelse(test$workclass == 'Never-worked', '?', test$workclass)
+
+#Re-leveling Education_level
+test$education_level <- factor(test$education_level, levels = c("HS-grad", "Preschool", "1st-4th", "5th-6th","7th-8th","9th","10th","11th","12th","Some-college","Assoc-voc","Assoc-acdm","Bachelors","Masters","Prof-school","Doctorate"))
+test %>% count(education_level, sort = TRUE)
+
+
+#Looking at Probability Based Metrics for Assessing Predictive Power:
+#looking at Coefficient of Discrimination test
+test$p_hat<-predict(full.model5, newdata=test, type ="response") 
+p1 <-test$p_hat[test$over_50k==1] 
+p0 <-test$p_hat[test$over_50k==0] 
+
+#Coefficient of Discrimination
+coef_discrim<-mean(p1) -mean(p0)
+coef_discrim
+#0.4080256
+
+#Plotting the distribution of 0's and 1's
+ggplot(test, aes(p_hat, fill =factor(over_50k))) +geom_density(alpha =0.7) +scale_fill_grey() +labs(x ="Predicted Probability", fill ="Outcome", title =paste("Coefficient of Discrimination = ", round(coef_discrim, 3), sep=""))
+
+
+InformationValue::Concordance(test$over_50k, test$p_hat)
+# $Concordance
+# [1] 0.8921164
+# 
+# $Discordance
+# [1] 0.1078836
+# 
+# $Tied
+# [1] 4.163336e-17
+# 
+# $Pairs
+# [1] 4388339
+InformationValue::somersD(test$over_50k, test$p_hat)
+# 0.7842327
+
+
+#Looking at Classification Based Metrics for Assessing Predictive Power:
+
+library(InformationValue)
+sens<-NULL
+spec <-NULL
+youden<-NULL
+cutoff <-NULL
+for(i in 1:49){ 
+	cutoff =c(cutoff, i/50) 
+	sens<-c(sens, sensitivity(test$over_50k, test$p_hat, threshold =i/50)) 
+	spec <-c(spec, specificity(test$over_50k, test$p_hat, threshold =i/50)) 
+	youden<-c(youden, youdensIndex(test$over_50k, test$p_hat, threshold =i/50)) 
+} 
+ctable<-data.frame(cutoff, sens, spec, youden) 
+
+print(ctable[order(-youden),])
+
+#optimal cutoff of .26
+confusionMatrix(test$over_50k, test$p_hat, threshold =0.26)
+
+plotROC(test$over_50k, test$p_hat)
+#concordance 0.892
+
+#calculating KS statistic - Bank's want to know these. 
+InformationValue::ks_stat(test$over_50k, test$p_hat)
+# 0.6217
+```
+
+
+## Reporting
+#STEP 5: Group all data back together and run final stats
+```{r reporting}
+#group all data back together:
+
+#preform all binning and separation addressing from train to whole dataset:
+ovr50$capital_gain <- ifelse(ovr50$capital_gain == 0, 0, 1)
+ovr50$capital_loss <- ifelse(ovr50$capital_loss == 0, 0, 1)
+ovr50$hours_week = ifelse(ovr50$hours_week < 40, 1, ovr50$hours_week)
+ovr50$hours_week_bin = ovr50$hours_week
+ovr50$hours_week_bin = ifelse(ovr50$hours_week_bin > 40, 2, ovr50$hours_week_bin)
+ovr50$hours_week_bins = ovr50$hours_week_bin
+ovr50$hours_week_bins = ifelse(ovr50$hours_week_bins == 40, 0, ovr50$hours_week_bins)
+ovr50 <- ovr50%>%mutate(age_bin = cut(age, breaks = c(0,24,44,64,140)))
+head(ovr50,10)
+ovr50$country<- ifelse(ovr50$country == 'Holand-Netherlands'| ovr50$country == 'Honduras' |ovr50$country == 'Loas', '?', ovr50$country)
+ovr50$education_level<- ifelse(ovr50$education_level == 'Preschool', '1st-4th', ovr50$education_level)
+ovr50$workclass<- ifelse(ovr50$workclass == 'Never-worked', '?', ovr50$workclass)
+
+#Re-leveling Education_level
+ovr50$education_level <- factor(ovr50$education_level, levels = c("HS-grad", "Preschool", "1st-4th", "5th-6th","7th-8th","9th","10th","11th","12th","Some-college","Assoc-voc","Assoc-acdm","Bachelors","Masters","Prof-school","Doctorate"))
+ovr50 %>% count(education_level, sort = TRUE)
+
+
+
+
+#Run the final model:
+final.model <- glm(over_50k ~ factor(age_bin) + factor(occupation) + factor(education_level) + 
+    factor(marital_status) + factor(race) + factor(capital_gain) + 
+    factor(capital_loss) + factor(hours_week_bins) , data =ovr50, family =binomial(link ='logit'))
+summary(final.model)
+
+
+
+
+#Looking at Probability Based Metrics for Assessing Predictive Power:
+#looking at Coefficient of Discrimination (re-do on validation and test!)
+ovr50$p_hat<-predict(final.model, type ="response") 
+p1 <-ovr50$p_hat[ovr50$over_50k==1] 
+p0 <-ovr50$p_hat[ovr50$over_50k==0] 
+
+#Coefficient of Discrimination
+coef_discrim<-mean(p1) -mean(p0)
+coef_discrim
+#0.4156532
+
+
+#Plotting the distribution of 0's and 1's
+ggplot(ovr50, aes(p_hat, fill =factor(over_50k))) +geom_density(alpha =0.7) +scale_fill_grey() +labs(x ="Predicted Probability", fill ="Outcome", title =paste("Coefficient of Discrimination = ", round(coef_discrim, 3), sep=""))
+
+
+InformationValue::Concordance(ovr50$over_50k, ovr50$p_hat)
+# $Concordance
+# [1] 0.8976143
+# 
+# $Discordance
+# [1] 0.1023857
+# 
+# $Tied
+# [1] 1.387779e-17
+# 
+# $Pairs
+# [1] 434230485
+InformationValue::somersD(ovr50$over_50k, ovr50$p_hat)
+# 0.7952286
+
+
+#Looking at Classification Based Metrics for Assessing Predictive Power:
+
+library(InformationValue)
+sens<-NULL
+spec <-NULL
+youden<-NULL
+cutoff <-NULL
+for(i in 1:49){ 
+	cutoff =c(cutoff, i/50) 
+	sens<-c(sens, sensitivity(ovr50$over_50k, ovr50$p_hat, threshold =i/50)) 
+	spec <-c(spec, specificity(ovr50$over_50k, ovr50$p_hat, threshold =i/50)) 
+	youden<-c(youden, youdensIndex(ovr50$over_50k, ovr50$p_hat, threshold =i/50)) 
+} 
+ctable<-data.frame(cutoff, sens, spec, youden) 
+
+print(ctable[order(-youden),])
+
+#optimal cutoff of .22
+confusionMatrix(ovr50$over_50k, ovr50$p_hat, threshold =0.22)
+
+plotROC(ovr50$over_50k, ovr50$p_hat)
+#concordance 0.8975
+
+#calculating KS statistic - Bank's want to know these. 
+InformationValue::ks_stat(ovr50$over_50k, ovr50$p_hat)
+# 0.6305
+
+```
+
+## Calculating Odds Ratios for Reporting
+```{r odds}
+#Looking at odds ratios:
+oddsratios <- as.data.frame(exp( cbind(coef(final.model))))
+oddsratios <- rownames_to_column(oddsratios, "Variable")
+colnames(oddsratios) <- c("Variable", "Ratio")
+oddsratios <- oddsratios %>% arrange( Ratio)
+oddsratios
+
+oddsratios$Ratio
+oddsratios$Variable
+
+#ordering p-values by signficance.
+mainEff <- as.data.frame( summary(final.model)$coef )
+mainEff <- rownames_to_column(mainEff, "Variable")
+colnames(mainEff) <- c("Variable", "Estimate", "Std_Error", "z_value", "p_val")
+mainEff <- mainEff %>% arrange( p_val )
+mainEff
+
+mainEff$p_val
+mainEff$Variable
+```
